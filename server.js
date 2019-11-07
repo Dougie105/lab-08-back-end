@@ -67,6 +67,7 @@ function locationHandler(req, res) {
   }).catch(error => errorHandler(error, req, res));
 }
 
+
 function coordHandler(req, res) {
   let SQL = 'SELECT * FROM coordinates';
   client.query(SQL)
