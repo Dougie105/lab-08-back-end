@@ -12,7 +12,18 @@ const PORT = process.env.PORT || 3000;
 const app = express();
 app.use(cors());
 
-app.listen(PORT, () => console.log(`listening on PORT ${PORT}`));
+
+
+function coordHandler(req, res) {
+  let SQL = 'SELECT * FROM coordinates';
+  client.query(SQL)
+    .then( results => {
+      res.status(200).json(results.rows);
+    })
+    .catch( err => console.err(err));
+}
+
+
 
 app.get('/location', locationHandler);
 app.get('/weather', weatherHandler);
