@@ -1,7 +1,7 @@
-DROP TABLE IF EXISTS people;
+DROP TABLE IF EXISTS coordinates;
 
-CREATE TABLE people (
+CREATE TABLE coordinates (
     id SERIAL PRIMARY KEY,
-    first_name VARCHAR(255),
-    last_name VARCHAR(255)
+    latitude VARCHAR(20),
+    longitude VARCHAR(20)
 );
