@@ -1,152 +1,124 @@
-'use strict';
+'use strict'
 
 require('dotenv').config();
-///////////////////////////////////////////////////////////////////////
+
 //App dependencies
-///////////////////////////////////////////////////////////////////////
 const superagent = require('superagent');
-const cors = require('cors');
 const express = require('express');
-const pg = require('pg');
+const cors = require('cors');
 
-///////////////////////////////////////////////////////////////////////
-///Initializers
-///////////////////////////////////////////////////////////////////////
+//Initalizers
 const PORT = process.env.PORT || 3000;
-const server = express();
-server.use(cors());
+const app = express();
+app.use(cors());
 
-server.get('/location', locationHandler);
-server.get('/weather', weatherHandler);
-server.get('/trails', trailsHandler);
-server.get('/coordinates', coordHandler);
-// server.get('/add', addRow);
-server.use('*', notFound);
-server.use(errorHandler);
+app.listen(PORT, () => console.log(`listening on PORT ${PORT}`));
 
-///////////////////////////////////////////////////////////////////////
-// DB setup
-///////////////////////////////////////////////////////////////////////
-const client = new pg.Client(process.env.DATABASE_URL);
-client.on('err', err => {throw err;});
+app.get('/location', locationHandler);
+app.get('/weather', weatherHandler);
+// app.get('/events', eventBriteHandler);
+app.get('/trails', trailsHandler);
+app.use('*', notFoundHandler);
+app.use(errorHandler);
 
-server.get('/', (req, res) => {
-  res.status(200).json('Yay');
-});
+//Trails
 
-///////////////////////////////////////////////////////////////////////
-//Callback Functions
-///////////////////////////////////////////////////////////////////////
+function trailsHandler(request, response) {
+  let trailsData = request.query.data;
+  const url = `https://www.hikingproject.com/data/get-trails?${request.query.data.latitude},${request.query.data.longitude}&maxDistance=10&key=${process.env.TRAIL_API_KEY}`;
 
-///////////////////////////////////////////////////////////////////////
-//Not Found
-function notFound(req, res) {
-  res.status(404).send('Not Found');
-}
-///////////////////////////////////////////////////////////////////////
-//Error Handler
-function errorHandler(error, req, res) {
-  res.status(500).send(error);
-}
-///////////////////////////////////////////////////////////////////////
-//Build a path to Location (lat/lng)
-function locationHandler(req, res) {
-  const url = `https://maps.googleapis.com/maps/api/geocode/json?address=${req.query.data}&key=${process.env.GEOCODE_API_KEY}`;
-  superagent.get(url).then(data => {
-    let location = (new Location(req.query.data, data.body));
-    // let ABC = 'SELECT latitude FROM coordinates WHERE latitude = ($1)'
-    // let dataValue = [data.body.results[0].geometry.location.lat]
-    // client.query(ABC, dataValue).then(result => )
-    let SQL = 'INSERT INTO coordinates (latitude, longitude) VALUES ($1, $2) RETURNING *';
-    let safeValues = [data.body.results[0].geometry.location.lat, data.body.results[0].geometry.location.lng];
-    client.query(SQL, safeValues);
-    res.status(200).send(location)
-    .then( results => {
-      res.status(200).json(results);
+  superagent.get(url)
+    .then(trailsData => {
+      const trailsSummaries = trailsData.data.map(day => {
+        return new Trails(day);
+      });
+
+      response.status(200).json(trailsSummaries);
     })
-  }).catch(error => errorHandler(error, req, res));
-}
+    .catch(error => errorHandler(error, request, response));
+};
 
-function coordHandler(req, res) {
-  let SQL = 'SELECT * FROM coordinates';
-  client.query(SQL)
-    .then( results => {
-      res.status(200).json(results.rows);
+function Trails(name, trailsData) {
+  this.search_query = name;
+  this.formatted_query = trailsData.results[0].formatted_address;
+  this.latitude = trailsData.results[0].geometry.trails.lat;
+  this.longitude = trailsData.results[0].geometry.trails.lng;
+};
+
+// //EventBrite
+
+// function eventBriteHandler(request, response){
+//   const url = `https://www.eventbriteapi.com/v3/users/me/?token=${process.env.EVENTBRITE_API_KEY}`
+
+//   superagent.get(url)
+//   .set({'Authorization': `Bearer: ${process.env.EVENTBRITE_API_KEY}`})
+//     .then( eventData => {
+//       const eventSummaries = [];
+//         eventData.body.daily.data.forEach( (day) => {
+//           eventSummaries.push(new Event(day) )
+//         });
+
+//       response.status(200).json(eventSummaries);
+//     })
+//     .catch(error => errorHandler(error, request, response));
+// };
+
+// function Event(data) {
+//   this.name = data.name;
+// };
+
+//Location
+
+function locationHandler(request, response) {
+  //Get real data from real API
+  // let rawData = require('./data/geo.json');
+
+  const url = `https://maps.googleapis.com/maps/api/geocode/json?address=${request.query.data}&key=${process.env.GEOCODE_API_KEY}`
+
+  superagent.get(url)
+    .then(data => {
+      let location = new Location(request.query.data, data.body);
+      response.status(200).json(location);
     })
-    .catch( err => console.err(err));
-}
+    .catch(error => errorHandler(error, request, response))
 
+};
 
-///////////////////////////////////////////////////////////////////////
-//Building a path to /weather
-function weatherHandler(req, res) {
-  const url = `https://api.darksky.net/forecast/${process.env.WEATHER_API_KEY}/${req.query.data.latitude},${req.query.data.longitude}`;
-  superagent.get(url).then(data => {
-    const weatherSum = data.body.daily.data.map(value => {
-      return new Forecast(value);
-    });
-    res.status(200).json(weatherSum);
-  }).catch(error => errorHandler(error, req, res));
-}
-///////////////////////////////////////////////////////////////////////
-//Build a path to Trails
-function trailsHandler(req, res) {
-  const url = `https://www.hikingproject.com/data/get-trails?lat=${req.query.data.latitude}&lon=${req.query.data.longitude}&key=${process.env.TRAIL_API_KEY}`
-  superagent.get(url).then(data => {
-    let trailData = data.body.trails.map(value => {
-      return new Trail(value);
-    });
-    res.status(200).json(trailData);
-  }).catch(error => errorHandler(error, req, res));
-}
-
-
-///////////////////////////////////////////////////////////////////////
-//Constructor Functions
-///////////////////////////////////////////////////////////////////////
-
-///////////////////////////////////////////////////////////////////////
-//Forecast Constructor
-function Forecast(each) {
-  let temp = new Date((each.time) * 1000);
-  let tempScr = temp.toUTCString().slice(0, 16);
-  this.forecast = each.summary;
-  this.time = tempScr;
-}
-///////////////////////////////////////////////////////////////////////
-//Location Constructor
-function Location(city, geoData) {
+function Location(city, locationData) {
   this.search_query = city;
-  this.formatted_query = geoData.results[0].formatted_address;
-  this.latitude = geoData.results[0].geometry.location.lat;
-  this.longitude = geoData.results[0].geometry.location.lng;
-}
-///////////////////////////////////////////////////////////////////////
-//Trail Constructor
-function Trail(trailData){
-  this.name = trailData.name;
-  this.location = trailData.location;
-  this.length = trailData.length;
-  this.stars = trailData.stars;
-  this.star_votes = trailData.starVotes;
-  this.summary = trailData.summary;
-  this.trail_url = trailData.url;
-  this.conditions = `${trailData.conditionStatus}, ${trailData.conditionDetails}`
-  this.condition_date = trailData.conditionDate.slice(0,9);
-  this.condition_time = trailData.conditionDate.slice(11,18);
-}
+  this.formatted_query = locationData.results[0].formatted_address;
+  this.latitude = locationData.results[0].geometry.location.lat;
+  this.longitude = locationData.results[0].geometry.location.lng;
+};
 
+//Weather
 
-// server.listen(PORT, () => {
-//   console.log(`listening on PORT ${PORT}`);
-// });
+function weatherHandler(request, response) {
 
-client.connect()
-  .then(() => {
-    server.listen(PORT, () => {
-      console.log(`listening on ${PORT}`);
+  const url = `https://api.darksky.net/forecast/${process.env.WEATHER_API_KEY}/${request.query.data.latitude},${request.query.data.longitude}`;
+
+  superagent.get(url)
+    .then(weatherData => {
+      const weatherSummaries = weatherData.body.daily.data.map(day => {
+        return new Weather(day);
+      });
+
+      response.status(200).json(weatherSummaries);
     })
-  })
-  .catch(err => {
-    throw `PG startup error ${err.message}`
-  })
+    .catch(error => errorHandler(error, request, response));
+};
+
+function Weather(day) {
+  this.forecast = day.summary;
+  this.time = new Date(day.time * 1000).toString().slice(0, 15);
+}
+
+function notFoundHandler(request, response) {
+  response.status(404).send('Not Found');
+};
+
+function errorHandler(error, request, response) {
+  response.status(500).send(error);
+};
+
+app.use(express.static('./public'));
