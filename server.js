@@ -54,15 +54,28 @@ function locationHandler(req, res) {
   const url = `https://maps.googleapis.com/maps/api/geocode/json?address=${req.query.data}&key=${process.env.GEOCODE_API_KEY}`;
   superagent.get(url).then(data => {
     let location = (new Location(req.query.data, data.body));
-    // let ABC = 'SELECT latitude FROM coordinates WHERE latitude = ($1)'
-    // let dataValue = [data.body.results[0].geometry.location.lat]
-    // client.query(ABC, dataValue).then(result => )
-    let SQL = 'INSERT INTO coordinates (latitude, longitude) VALUES ($1, $2) RETURNING *';
-    let safeValues = [data.body.results[0].geometry.location.lat, data.body.results[0].geometry.location.lng];
-    client.query(SQL, safeValues);
-    res.status(200).send(location)
-    .then( results => {
-      res.status(200).json(results);
+    let ABC = 'SELECT latitude FROM coordinates WHERE latitude = ($1)'
+    let dataValue = [data.body.results[0].geometry.location.lat]
+    client.query(ABC, dataValue).then(result => {
+      console.log("ROWWWWS", result);
+      // console.log(result.rows[0].latitude);
+      if(!result.rowCount){
+        console.log('no match found');
+        let SQL = 'INSERT INTO coordinates (latitude, longitude) VALUES ($1, $2) RETURNING *';
+        let safeValues = [data.body.results[0].geometry.location.lat, data.body.results[0].geometry.location.lng];
+        client.query(SQL, safeValues);
+        res.status(200).send(location)
+        // .then( results => {
+        //   res.status(200).json(results);
+        // })
+        
+      } else {
+        console.log('match found');
+        res.status(200).send(location);
+        // .then( results => {
+        //   res.status(200).json(results);
+        // })
+      }
     })
   }).catch(error => errorHandler(error, req, res));
 }
