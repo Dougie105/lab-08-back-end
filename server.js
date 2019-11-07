@@ -1,5 +1,4 @@
 'use strict';
-
 require('dotenv').config();
 ///////////////////////////////////////////////////////////////////////
 //App dependencies
@@ -8,14 +7,12 @@ const superagent = require('superagent');
 const cors = require('cors');
 const express = require('express');
 const pg = require('pg');
-
 ///////////////////////////////////////////////////////////////////////
 ///Initializers
 ///////////////////////////////////////////////////////////////////////
 const PORT = process.env.PORT || 3000;
 const server = express();
 server.use(cors());
-
 server.get('/location', locationHandler);
 server.get('/weather', weatherHandler);
 server.get('/trails', trailsHandler);
@@ -23,21 +20,17 @@ server.get('/coordinates', coordHandler);
 // server.get('/add', addRow);
 server.use('*', notFound);
 server.use(errorHandler);
-
 ///////////////////////////////////////////////////////////////////////
 // DB setup
 ///////////////////////////////////////////////////////////////////////
 const client = new pg.Client(process.env.DATABASE_URL);
-client.on('err', err => {throw err;});
-
+client.on('err', err => { throw err; });
 server.get('/', (req, res) => {
   res.status(200).json('Yay');
 });
-
 ///////////////////////////////////////////////////////////////////////
 //Callback Functions
 ///////////////////////////////////////////////////////////////////////
-
 ///////////////////////////////////////////////////////////////////////
 //Not Found
 function notFound(req, res) {
@@ -54,6 +47,7 @@ function locationHandler(req, res) {
   const url = `https://maps.googleapis.com/maps/api/geocode/json?address=${req.query.data}&key=${process.env.GEOCODE_API_KEY}`;
   superagent.get(url).then(data => {
     let location = (new Location(req.query.data, data.body));
+
     let ABC = 'SELECT latitude FROM coordinates WHERE latitude = ($1)'
     let dataValue = [data.body.results[0].geometry.location.lat]
     client.query(ABC, dataValue).then(result => {
@@ -77,20 +71,17 @@ function locationHandler(req, res) {
         // })
       }
     })
+
   }).catch(error => errorHandler(error, req, res));
 }
-
-
 function coordHandler(req, res) {
   let SQL = 'SELECT * FROM coordinates';
   client.query(SQL)
-    .then( results => {
+    .then(results => {
       res.status(200).json(results.rows);
     })
-    .catch( err => console.err(err));
+    .catch(err => console.err(err));
 }
-
-
 ///////////////////////////////////////////////////////////////////////
 //Building a path to /weather
 function weatherHandler(req, res) {
@@ -113,12 +104,9 @@ function trailsHandler(req, res) {
     res.status(200).json(trailData);
   }).catch(error => errorHandler(error, req, res));
 }
-
-
 ///////////////////////////////////////////////////////////////////////
 //Constructor Functions
 ///////////////////////////////////////////////////////////////////////
-
 ///////////////////////////////////////////////////////////////////////
 //Forecast Constructor
 function Forecast(each) {
@@ -137,7 +125,7 @@ function Location(city, geoData) {
 }
 ///////////////////////////////////////////////////////////////////////
 //Trail Constructor
-function Trail(trailData){
+function Trail(trailData) {
   this.name = trailData.name;
   this.location = trailData.location;
   this.length = trailData.length;
@@ -146,15 +134,12 @@ function Trail(trailData){
   this.summary = trailData.summary;
   this.trail_url = trailData.url;
   this.conditions = `${trailData.conditionStatus}, ${trailData.conditionDetails}`
-  this.condition_date = trailData.conditionDate.slice(0,9);
-  this.condition_time = trailData.conditionDate.slice(11,18);
+  this.condition_date = trailData.conditionDate.slice(0, 9);
+  this.condition_time = trailData.conditionDate.slice(11, 18);
 }
-
-
 // server.listen(PORT, () => {
 //   console.log(`listening on PORT ${PORT}`);
 // });
-
 client.connect()
   .then(() => {
     server.listen(PORT, () => {
